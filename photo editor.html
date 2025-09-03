@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Photo Editing Web Panel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.0.1/css/all.min.css" integrity="sha512-2SwdPD6INVrV/lHTZbO2nodKhrnDdJK9/kg2XD1r9uGqPo1cUbujc+IYdlYdEErWNu69gVcYgdxlmVmzTWnetw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <style>
+
+    :root{
+      --bg:#0f1220; /* deep slate */
+      --panel:#171b2e;
+      --panel-2:#1e2340;
+      --text:#e6e8ef;
+      --muted:#9aa4b2;
+      --accent:#6ea8fe;
+      --accent-2:#9b7bff;
+      --danger:#ff6b6b;
+      --ok:#39d98a;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius: 16px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+
+    body{
+      margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      color:var(--text); background:radial-gradient(1200px 700px at 70% -10%, #25306a33, transparent), var(--bg);
+    }
+    #file{
+      display: none;
+    }
+    .forImage{
+      padding: 15px;
+      border: 1px dashed #2c3154;
+      border-radius: 10px;
+    }
+    .forImage:hover{
+      color:  #2f355c;     border-color:  #2f355c;
+    }
+    .app{
+      display:grid; grid-template-columns: 320px 1fr; gap:16px; height:100vh; padding:16px;
+    }
+    @media (max-width: 900px){
+      .app{ grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+      .panel{ order:2 }
+      .stage-wrap{ order:1; height:60vh }
+    }
+    .panel{
+      background:linear-gradient(180deg, var(--panel), var(--panel-2));
+      border:1px solid #303659; border-radius:var(--radius); box-shadow:var(--shadow);
+      padding:14px; overflow:auto;
+    }
+    .panel h2{margin:6px 0 14px; font-size:18px; letter-spacing:.3px}
+    .section{border-top:1px dashed #2c3154; padding-top:12px; margin-top:12px}
+    .row{display:flex; align-items:center; gap:10px; margin:8px 0}
+    .row label{min-width:96px; color:var(--muted); font-size:13px}
+    input[type="range"]{width:100%}
+    input[type="range"]::-webkit-slider-thumb{ appearance:none; width:16px; height:16px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--accent-2)); border:0; box-shadow:0 2px 6px rgba(0,0,0,.4)}
+    input[type="range"]::-webkit-slider-runnable-track{ height:4px; background:#2f355c; border-radius:999px }
+    .btn{ cursor:pointer; padding:10px 12px; border-radius:12px; border:1px solid #2b3253; background:#1a2040; color:var(--text); font-weight:600; letter-spacing:.2px; box-shadow:var(--shadow); transition:.18s transform ease, .18s background ease }
+    .btn:hover{ transform:translateY(-1px); background:#212751 }
+    .btn.ghost{ background:transparent }
+    .btn.full{ width:100% }
+    .btn.danger{ border-color:#5b2a2a; background:#2a1717 }
+    .btn.ok{ border-color:#1c3b2e; background:#0e261e }
+    .btn-row{ display:grid; grid-template-columns: repeat(2, 1fr); gap:8px }
+    .btn-row-3{ display:grid; grid-template-columns: repeat(3, 1fr); gap:8px }
+    .badge{font-size:12px; color:#b7c0d1}
+
+    .stage-wrap{
+      position:relative; background:linear-gradient(180deg, #0d1022, #141a38); border:1px solid #2b3158; border-radius:var(--radius); box-shadow:var(--shadow); display:flex; flex-direction:column;
+    }
+    .toolbar{ display:flex; gap:8px; padding:10px; border-bottom:1px solid #2b3158; align-items:center; flex-wrap:wrap }
+    .spacer{ flex:1 }
+    .dropzone{ position:relative; flex:1; display:flex; align-items:center; justify-content:center; overflow:hidden; border-bottom-left-radius:var(--radius); border-bottom-right-radius:var(--radius)}
+    .canvas-holder{ position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; }
+    canvas{ max-width:100%; max-height:100%; image-rendering:auto; background:#0a0f25 }
+
+    .dz-hint{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px; text-align:center; pointer-events:none; opacity:.75 }
+    .dz-hint .big{ font-size:18px; font-weight:700 }
+    .dz-hint .small{ font-size:13px; color:var(--muted) }
+
+    /* Crop overlay */
+    .crop-rect{ position:absolute; border:2px dashed #fff; outline:20000px solid rgba(0,0,0,.45); border-radius:8px; pointer-events:none }
+
+    .pill{padding:4px 8px; background:#1c234b; border:1px solid #2b3158; border-radius:999px; font-size:12px; color:#c7cce0}
+    .select, select, input[type="number"], input[type="file"]{
+      background:#1a2040; border:1px solid #2b3253; color:var(--text); border-radius:12px; padding:8px 10px; font-weight:600;
+    }
+    .inline{ display:inline-flex; align-items:center; gap:6px }
+    .meter{ min-width:42px; text-align:right; color:#b6bed1; font-variant-numeric:tabular-nums }
+    .footer{ display:flex; gap:8px; padding:10px; border-top:1px solid #2b3158; }
+    .kbd{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; padding:2px 6px; border-radius:6px; background:#23294d; border:1px solid #323a6b; color:#c7d0ee}
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Controls Panel -->
+    <aside class="panel" id="panel">
+
+      <h2>Editor Controls</h2>
+
+      <div class="row">
+        <label for="file" class="forImage"><i class="fa-solid fa-image"></i> Add Image</label>
+        <input id="file" type="file" accept="image/*" />
+        <button class="btn" id="openDemo">Demo</button>
+      </div>
+      <div class="row">
+        <button class="btn full" id="pasteBtn" title="Paste (Ctrl/Cmd+V)">Paste from Clipboard</button>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <label>Brightness</label>
+          <input type="range" id="brightness" min="0" max="300" value="100" />
+          <span class="meter" id="m_brightness">100%</span>
+        </div>
+        <div class="row">
+          <label>Contrast</label>
+          <input type="range" id="contrast" min="0" max="300" value="100" />
+          <span class="meter" id="m_contrast">100%</span>
+        </div>
+        <div class="row">
+          <label>Saturation</label>
+          <input type="range" id="saturate" min="0" max="300" value="100" />
+          <span class="meter" id="m_saturate">100%</span>
+        </div>
+        <div class="row">
+          <label>Hue</label>
+          <input type="range" id="hue" min="-180" max="180" value="0" />
+          <span class="meter" id="m_hue">0°</span>
+        </div>
+        <div class="row">
+          <label>Temperature</label>
+          <input type="range" id="temp" min="-100" max="100" value="0" />
+          <span class="meter" id="m_temp">0</span>
+        </div>
+        <div class="row">
+          <label>Exposure</label>
+          <input type="range" id="exposure" min="-100" max="100" value="0" />
+          <span class="meter" id="m_exposure">0</span>
+        </div>
+        <div class="row">
+          <label>Clarity</label>
+          <input type="range" id="blur" min="0" max="6" value="0" step="0.1" />
+          <span class="meter" id="m_blur">0</span>
+        </div>
+        <div class="row">
+          <label>Vignette</label>
+          <input type="range" id="vignette" min="0" max="100" value="0" />
+          <span class="meter" id="m_vignette">0%</span>
+        </div>
+        <div class="row">
+          <label>Opacity</label>
+          <input type="range" id="opacity" min="10" max="100" value="100" />
+          <span class="meter" id="m_opacity">100%</span>
+        </div>
+        <div class="row">
+          <label>Invert</label>
+          <input type="range" id="invert" min="0" max="100" value="0" />
+          <span class="meter" id="m_invert">0%</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="btn-row-3">
+          <button class="btn" id="rotL">⟲ Left</button>
+          <div class="inline" style="justify-content:center">
+            <span class="badge">Rotate</span>
+          </div>
+          <button class="btn" id="rotR">⟳ Right</button>
+        </div>
+        <div class="row">
+          <label>Angle</label>
+          <input type="range" id="rotate" min="-180" max="180" value="0" />
+          <span class="meter" id="m_rotate">0°</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="flipH">↔ Flip X</button>
+          <button class="btn" id="flipV">↕ Flip Y</button>
+        </div>
+        <div class="row">
+          <label>Zoom</label>
+          <input type="range" id="zoom" min="10" max="300" value="100" />
+          <span class="meter" id="m_zoom">100%</span>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="row">
+          <label>Crop</label>
+          <select id="aspect">
+            <option value="free">Free</option>
+            <option value="1:1">1:1</option>
+            <option value="4:5">4:5</option>
+            <option value="16:9">16:9</option>
+            <option value="3:2">3:2</option>
+          </select>
+        </div>
+        <div class="btn-row">
+          <button class="btn" id="toggleCrop">✂️ Crop Mode</button>
+          <button class="btn ok" id="applyCrop" disabled>Apply Crop</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="btn-row">
+          <button class="btn ghost" id="reset">Reset</button>
+          <button class="btn danger" id="clear">Clear</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h3 style="margin:0 0 8px">Export</h3>
+        <div class="row">
+          <label>Format</label>
+          <select id="fmt">
+            <option value="image/png">PNG</option>
+            <option value="image/jpeg">JPEG</option>
+            <option value="image/webp">WEBP</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Quality</label>
+          <input type="range" id="quality" min="1" max="100" value="92" />
+          <span class="meter" id="m_quality">92</span>
+        </div>
+        <div class="btn-row">
+          <button class="btn full" id="download">Download</button>
+        </div>
+        <div class="row" style="justify-content:center"><span class="kbd">Hold <b>Space</b> to compare</span></div>
+      </div>
+    </aside>
+
+    <!-- Stage -->
+    <main class="stage-wrap">
+      <div class="toolbar">
+        <span class="pill" id="imgInfo">No image loaded</span>
+        <div class="spacer" style="text-align: center; display: flex;">BIJAY <p style="margin: 0 5%;">Photo Editor</p></div>
+        <span class="pill">Drag & Drop • Click to Upload • Paste</span>
+      </div>
+      <div class="dropzone" id="dropzone">
+        <div class="canvas-holder" id="holder">
+          <canvas id="canvas" width="1280" height="800"></canvas>
+          <div class="crop-rect" id="cropRect" hidden></div>
+        </div>
+        <div class="dz-hint" id="hint">
+          <div class="big">Drop an image or click <span style="color:var(--accent)">Browse</span> above</div>
+          <div class="small">PNG • JPEG • WEBP • HEIC (if supported)</div>
+        </div>
+      </div>
+      <div class="footer">
+        <button class="btn" id="fit">Fit</button>
+        <button class="btn" id="actual">100%</button>
+        <div class="spacer" style="text-align: center;">&copy; 2025 All Rights Reserved || Bijay Khanal </div>
+        <span class="badge" id="zoomBadge">Zoom: 100%</span>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    // ====== State ======
+    const el = id => document.getElementById(id);
+    const canvas = el('canvas');
+    const ctx = canvas.getContext('2d');
+    const holder = el('holder');
+    const dropzone = el('dropzone');
+    const hint = el('hint');
+    const cropRect = el('cropRect');
+
+    const state = {
+      loaded:false,
+      img:new Image(),
+      original:new Image(),
+      natural:{w:0,h:0},
+      // edits
+      brightness:100, contrast:100, saturate:100, hue:0, temp:0, exposure:0,
+      blur:0, opacity:100, invert:0, vignette:0,
+      rotate:0, flipX:false, flipY:false, zoom:100,
+      // crop
+      cropMode:false, aspect:'free', crop:null, // crop in screen coords
+      comparing:false,
+    };
+
+    // ====== Helpers ======
+    function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
+    function deg(rad){ return rad * 180/Math.PI }
+    function rad(deg){ return deg * Math.PI/180 }
+
+    function setMeter(id, text){ el(id).textContent = text }
+
+    function uiSync(){
+      setMeter('m_brightness', state.brightness + '%');
+      setMeter('m_contrast', state.contrast + '%');
+      setMeter('m_saturate', state.saturate + '%');
+      setMeter('m_hue', state.hue + '°');
+      setMeter('m_temp', state.temp);
+      setMeter('m_exposure', state.exposure);
+      setMeter('m_blur', state.blur);
+      setMeter('m_opacity', state.opacity + '%');
+      setMeter('m_invert', state.invert + '%');
+      setMeter('m_vignette', state.vignette + '%');
+      setMeter('m_rotate', state.rotate + '°');
+      setMeter('m_zoom', state.zoom + '%');
+      el('zoomBadge').textContent = 'Zoom: ' + state.zoom + '%';
+      el('applyCrop').disabled = !state.cropMode || !state.crop;
+      el('toggleCrop').classList.toggle('ok', state.cropMode);
+    }
+
+    function updateCanvasSizeToHolder(){
+      const rect = holder.getBoundingClientRect();
+      const pad = 24; // breathing space
+      canvas.width = Math.max(320, Math.floor(rect.width - pad));
+      canvas.height = Math.max(240, Math.floor(rect.height - pad));
+    }
+
+    function draw(){
+      const {loaded} = state;
+      ctx.clearRect(0,0,canvas.width, canvas.height);
+      if(!loaded) return;
+
+      const img = state.img;
+      // fit image to canvas based on zoom
+      const angle = rad(state.rotate % 360);
+      const sin = Math.abs(Math.sin(angle));
+      const cos = Math.abs(Math.cos(angle));
+
+      const iw = img.naturalWidth;
+      const ih = img.naturalHeight;
+      state.natural = {w:iw, h:ih};
+
+      // Compute scaled draw size (fit inside canvas, then apply zoom)
+      const boundW = canvas.width; const boundH = canvas.height;
+      const rotW = iw * cos + ih * sin; // rotated bounds
+      const rotH = iw * sin + ih * cos;
+      const fitScale = Math.min(boundW/rotW, boundH/rotH);
+      const scale = fitScale * (state.zoom/100);
+      const dw = iw * scale; const dh = ih * scale;
+
+      const cx = canvas.width/2; const cy = canvas.height/2;
+
+      // build filter string
+      const temperature = state.temp; // simple color balance via hue-rotate + saturate
+      const tempHue = temperature * 0.5; // tilt hue tiny bit
+      const exposure = state.exposure; // use brightness & contrast blend
+      const expB = 100 + exposure; const expC = 100 + exposure*0.6;
+
+      const filter = [
+        `brightness(${state.brightness}%)`,
+        `contrast(${state.contrast}%)`,
+        `saturate(${state.saturate}%)`,
+        `hue-rotate(${state.hue + tempHue}deg)`,
+        `invert(${state.invert}%)`,
+        `opacity(${state.opacity}%)`,
+        `blur(${state.blur}px)`,
+        `brightness(${expB}%)`,
+        `contrast(${expC}%)`
+      ].join(' ');
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(angle);
+      ctx.scale(state.flipX?-1:1, state.flipY?-1:1);
+      ctx.filter = filter;
+      ctx.drawImage(img, -dw/2, -dh/2, dw, dh);
+      ctx.restore();
+
+      // vignette overlay
+      if(state.vignette>0){
+        const grd = ctx.createRadialGradient(cx, cy, Math.min(cx,cy)*0.2, cx, cy, Math.max(cx,cy));
+        const alpha = clamp(state.vignette/100, 0, .85);
+        grd.addColorStop(0, `rgba(0,0,0,0)`);
+        grd.addColorStop(1, `rgba(0,0,0,${alpha})`);
+        ctx.fillStyle = grd;
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+      }
+
+      // crop visual
+      if(state.cropMode && state.crop){
+        const r = state.crop; // in screen coords
+        cropRect.hidden = false;
+        Object.assign(cropRect.style, {
+          left: r.x + 'px', top: r.y + 'px', width: r.w + 'px', height: r.h + 'px'
+        });
+      } else {
+        cropRect.hidden = true;
+      }
+    }
+
+    // ====== Loaders ======
+    async function loadFile(file){
+      if(!file) return;
+      const url = URL.createObjectURL(file);
+      await loadURL(url);
+      URL.revokeObjectURL(url);
+    }
+
+    function loadURL(url){
+      return new Promise((res, rej)=>{
+        const img = new Image();
+        img.onload = ()=>{
+          state.img = img;
+          state.original = img.cloneNode(false);
+          state.loaded = true;
+          hint.style.display = 'none';
+          updateCanvasSizeToHolder();
+          draw();
+          el('imgInfo').textContent = `Image: ${img.naturalWidth}×${img.naturalHeight}`;
+          res();
+        };
+        img.onerror = rej;
+        img.src = url;
+      });
+    }
+
+    // Demo image (tiny embedded)
+    const DEMO = 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wCEAAkGBxAQEA8QDw8PDw8PDw8PDw8QDw8PDw8PFREWFhURFRUYHSggGBolGxUVITEhJSkrLi4uFx8zODMsNygtLisBCgoKDg0OGhAQGy0lICUtLS0tLSstLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLf/AABEIAMIBAwMBIgACEQEDEQH/xAAXAAADAQAAAAAAAAAAAAAAAAABAwQG/8QAJhAAAgIBAgQHAAAAAAAAAAAAAQIDBBEABRITITEzQVEVImGBkf/EABcBAQEBAQAAAAAAAAAAAAAAAAECAwT/xAAcEQACAgIDAAAAAAAAAAAAAAABAgARAxIxQXH/2gAMAwEAAhEDEQA/APJk3LQ6Vq0Kp4ZJYqU8k3k7k4t4o/SL7p5C1gSdlb4nEw0MZr0lxyJ0yE7Yx5z2s8O5nQ0S7HkYp7+3A1q3nAqkZ2a8c3GzqkZ6aRZtO8w5xHjzXGxU1jZzq8S5b0iS0uTq3m3t4i6S5Qm8Y8i3P0SUc2lq6j1PqA5U6S5k3b7iQXoZkQvTzvWch2n91KQ1R3CWi9p4n9oH4r8Y9WwDYo1f1C2nZ1J9V+XkYw1i2yH3VfXvXJ0y8r6yYx+9vQbq2qvC0O5bK5Q0rZ9zPqgJ1mK2a6rY3mW+7v7hQdEJXn7W0yqQqVqgSg6mZ0A4zj0r2Q4yUp8k0m6e3xY2cM5K4n2gS9eF2eLv2yCZ0j1x3Yp3v1m9u2H/2Q==';
+
+    // ====== Export (full res) ======
+    function renderToOffscreenAndGetDataURL(){
+      const img = state.img;
+      const w = img.naturalWidth; const h = img.naturalHeight;
+      const oc = document.createElement('canvas');
+      const octx = oc.getContext('2d');
+
+      // If rotated by non-90 multiples, expand canvas so nothing is clipped
+      const angle = rad(state.rotate % 360);
+      const sin = Math.abs(Math.sin(angle));
+      const cos = Math.abs(Math.cos(angle));
+      const rotW = w * cos + h * sin;
+      const rotH = w * sin + h * cos;
+      oc.width = Math.ceil(rotW);
+      oc.height = Math.ceil(rotH);
+
+      // center and draw
+      octx.translate(oc.width/2, oc.height/2);
+      octx.rotate(angle);
+      octx.scale(state.flipX?-1:1, state.flipY?-1:1);
+
+      // filters
+      const temperature = state.temp; const tempHue = temperature * 0.5;
+      const exposure = state.exposure; const expB = 100 + exposure; const expC = 100 + exposure*0.6;
+      octx.filter = [
+        `brightness(${state.brightness}%)`,
+        `contrast(${state.contrast}%)`,
+        `saturate(${state.saturate}%)`,
+        `hue-rotate(${state.hue + tempHue}deg)`,
+        `invert(${state.invert}%)`,
+        `opacity(${state.opacity}%)`,
+        `blur(${state.blur}px)`,
+        `brightness(${expB}%)`,
+        `contrast(${expC}%)`
+      ].join(' ');
+
+      // draw image centered at 0,0
+      octx.drawImage(img, -w/2, -h/2);
+
+      // Crop (if applied already, state.img is already cropped). If we are in crop mode but not applied, ignore at export.
+      return oc;
+    }
+
+    function download(){
+      if(!state.loaded) return;
+      const fmt = el('fmt').value;
+      const q = clamp(parseInt(el('quality').value)/100, 0.01, 1);
+      const oc = renderToOffscreenAndGetDataURL();
+
+      // vignette has to be drawn after filters
+      if(state.vignette>0){
+        const octx = oc.getContext('2d');
+        const cx = oc.width/2, cy = oc.height/2;
+        const grd = octx.createRadialGradient(cx, cy, Math.min(cx,cy)*0.2, cx, cy, Math.max(cx,cy));
+        const alpha = clamp(state.vignette/100, 0, .85);
+        grd.addColorStop(0, `rgba(0,0,0,0)`);
+        grd.addColorStop(1, `rgba(0,0,0,${alpha})`);
+        octx.fillStyle = grd;
+        octx.fillRect(0,0,oc.width, oc.height);
+      }
+
+      oc.toBlob(b=>{
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(b);
+        a.download = 'edited.' + (fmt.split('/')[1] || 'png');
+        a.click();
+        setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+      }, fmt, q);
+    }
+
+    // ====== Crop Interaction ======
+    let drag = null; // {startX,startY}
+
+    function toHolderCoords(evt){
+      const rect = holder.getBoundingClientRect();
+      const x = (evt.touches?evt.touches[0].clientX:evt.clientX) - rect.left;
+      const y = (evt.touches?evt.touches[0].clientY:evt.clientY) - rect.top;
+      return {x:clamp(x,0,rect.width), y:clamp(y,0,rect.height)}
+    }
+
+    function startCrop(e){ if(!state.cropMode) return; drag = { ...toHolderCoords(e) }; }
+    function moveCrop(e){
+      if(!state.cropMode || !drag) return;
+      const cur = toHolderCoords(e);
+      let x = Math.min(drag.x, cur.x), y = Math.min(drag.y, cur.y);
+      let w = Math.abs(cur.x - drag.x), h = Math.abs(cur.y - drag.y);
+      // aspect lock
+      if(state.aspect !== 'free' && w>2 && h>2){
+        const [a,b] = state.aspect.split(':').map(Number);
+        const ratio = a/b;
+        if(w/h > ratio){ w = h * ratio; } else { h = w / ratio; }
+        if(cur.x < drag.x) x = drag.x - w; else x = drag.x;
+        if(cur.y < drag.y) y = drag.y - h; else y = drag.y;
+      }
+      state.crop = {x,y,w,h};
+      uiSync();
+      draw();
+    }
+    function endCrop(){ drag=null; uiSync(); }
+
+    function applyCrop(){
+      if(!state.crop) return;
+      // convert screen crop rect to image coords
+      const img = state.img;
+      const iw = img.naturalWidth, ih = img.naturalHeight;
+
+      // Recompute on-screen transform to map to image
+      const angle = rad(state.rotate % 360);
+      const sin = Math.abs(Math.sin(angle));
+      const cos = Math.abs(Math.cos(angle));
+      const boundW = canvas.width, boundH = canvas.height;
+      const rotW = iw * cos + ih * sin;
+      const rotH = iw * sin + ih * cos;
+      const fitScale = Math.min(boundW/rotW, boundH/rotH);
+      const scale = fitScale * (state.zoom/100);
+
+      // Build a canvas of the current on-screen composite at full canvas size
+      // Then map crop rect back to un-rotated image using inverse transforms.
+      // Simpler method: draw to offscreen at full resolution and crop proportionally.
+      const oc = renderToOffscreenAndGetDataURL();
+      // Offscreen size (rotated bounds)
+      const ow = oc.width, oh = oc.height;
+
+      // Compute where the image sits on screen (centered) and convert screen crop to normalized [0..1] of rotated canvas
+      const cx = canvas.width/2, cy = canvas.height/2;
+      const screenToRotated = (sx, sy) => {
+        const dx = sx - cx; const dy = sy - cy;
+        // scale factor between screen and rotated offscreen canvas
+        const rotWscreen = iw * scale * cos + ih * scale * sin;
+        const rotHscreen = iw * scale * sin + ih * scale * cos;
+        const kx = ow / rotWscreen; const ky = oh / rotHscreen;
+        return { x: dx * kx + ow/2, y: dy * ky + oh/2 };
+      }
+
+      const r = state.crop;
+      const p1 = screenToRotated(r.x, r.y);
+      const p2 = screenToRotated(r.x + r.w, r.y + r.h);
+
+      const sx = Math.max(0, Math.min(p1.x, p2.x));
+      const sy = Math.max(0, Math.min(p1.y, p2.y));
+      const sw = Math.max(1, Math.abs(p2.x - p1.x));
+      const sh = Math.max(1, Math.abs(p2.y - p1.y));
+
+      const cropC = document.createElement('canvas');
+      cropC.width = Math.round(sw);
+      cropC.height = Math.round(sh);
+      cropC.getContext('2d').drawImage(oc, sx, sy, sw, sh, 0, 0, cropC.width, cropC.height);
+
+      const url = cropC.toDataURL('image/png');
+      loadURL(url); // reload state with cropped image
+      state.rotate = 0; state.flipX = false; state.flipY = false; state.zoom = 100; state.crop = null; state.cropMode=false;
+      uiSync();
+    }
+
+    // ====== Events ======
+    // Input bindings
+    const binds = [
+      ['brightness','brightness'],['contrast','contrast'],['saturate','saturate'],['hue','hue'],
+      ['temp','temp'],['exposure','exposure'],['blur','blur'],['opacity','opacity'],['invert','invert'],['vignette','vignette'],
+      ['rotate','rotate'],['zoom','zoom']
+    ];
+    binds.forEach(([id, key])=>{
+      const input = el(id);
+      input.addEventListener('input', ()=>{ state[key] = parseFloat(input.value); uiSync(); draw(); })
+    });
+
+    el('rotL').onclick = ()=>{ state.rotate = (state.rotate - 90); el('rotate').value = state.rotate; uiSync(); draw(); };
+    el('rotR').onclick = ()=>{ state.rotate = (state.rotate + 90); el('rotate').value = state.rotate; uiSync(); draw(); };
+    el('flipH').onclick = ()=>{ state.flipX = !state.flipX; draw(); };
+    el('flipV').onclick = ()=>{ state.flipY = !state.flipY; draw(); };
+
+    el('aspect').onchange = (e)=>{ state.aspect = e.target.value; };
+
+    el('toggleCrop').onclick = ()=>{ state.cropMode = !state.cropMode; if(!state.cropMode) state.crop=null; uiSync(); draw(); };
+    el('applyCrop').onclick = applyCrop;
+
+    el('reset').onclick = ()=>{
+      Object.assign(state, { brightness:100, contrast:100, saturate:100, hue:0, temp:0, exposure:0, blur:0, opacity:100, invert:0, vignette:0, rotate:0, flipX:false, flipY:false, zoom:100 });
+      uiSync(); draw();
+    };
+    el('clear').onclick = ()=>{ state.loaded=false; hint.style.display='flex'; ctx.clearRect(0,0,canvas.width, canvas.height); el('imgInfo').textContent = 'No image loaded'; };
+
+    el('download').onclick = download;
+
+    el('file').addEventListener('change', e=> loadFile(e.target.files[0]));
+    el('openDemo').onclick = ()=> loadURL(DEMO);
+
+    // Paste support
+    el('pasteBtn').onclick = ()=> navigator.clipboard.read().then(items=>{
+      for(const item of items){
+        const t = item.types.find(t=>t.startsWith('image/'));
+        if(t){ item.getType(t).then(blob=> loadFile(blob)); return; }
+      }
+      alert('No image in clipboard');
+    }).catch(()=>alert('Clipboard blocked by browser. Try Ctrl/Cmd+V in the page.'));
+
+    // Drag & Drop
+    ;['dragenter','dragover'].forEach(ev=> dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.style.outline='2px dashed #6080ff'; }));
+    ;['dragleave','drop'].forEach(ev=> dropzone.addEventListener(ev, e=>{ e.preventDefault(); dropzone.style.outline='none'; }));
+    dropzone.addEventListener('drop', e=>{
+      const file = e.dataTransfer.files[0]; if(file) loadFile(file);
+    });
+
+    // Click to open file
+    dropzone.addEventListener('click', ()=> el('file').click());
+
+    // Resize
+    window.addEventListener('resize', ()=>{ updateCanvasSizeToHolder(); draw(); });
+    updateCanvasSizeToHolder();
+
+    // Crop interactions on holder
+    holder.addEventListener('mousedown', startCrop);
+    holder.addEventListener('mousemove', moveCrop);
+    window.addEventListener('mouseup', endCrop);
+
+    holder.addEventListener('touchstart', startCrop, {passive:true});
+    holder.addEventListener('touchmove', moveCrop, {passive:true});
+    holder.addEventListener('touchend', endCrop, {passive:true});
+
+    // Compare (hold Space)
+    window.addEventListener('keydown', e=>{
+      if(e.code==='Space' && state.loaded && !state.comparing){
+        state.comparing = true; const prev = state.img.src; state.img = state.original; draw(); state.img = new Image(); state.img.src = prev; // keep ref
+      }
+    });
+    window.addEventListener('keyup', e=>{
+      if(e.code==='Space' && state.loaded){ state.comparing=false; draw(); }
+    });
+
+    // Fit / 100%
+    el('fit').onclick = ()=>{ if(!state.loaded) return; state.zoom = 100; // compute exact fit then adjust slider accordingly
+      // Calculate current fit scale and convert to zoom percent that equals "fit"
+      const img = state.img; const iw = img.naturalWidth; const ih = img.naturalHeight;
+      const angle = rad(state.rotate % 360); const sin = Math.abs(Math.sin(angle)); const cos = Math.abs(Math.cos(angle));
+      const boundW = canvas.width; const boundH = canvas.height; const rotW = iw * cos + ih * sin; const rotH = iw * sin + ih * cos; const fitScale = Math.min(boundW/rotW, boundH/rotH);
+      state.zoom = Math.round(fitScale*100);
+      el('zoom').value = state.zoom; uiSync(); draw(); };
+    el('actual').onclick = ()=>{ state.zoom = 100; el('zoom').value=100; uiSync(); draw(); };
+
+    // File paste (Ctrl/Cmd+V)
+    window.addEventListener('paste', e=>{
+      const items = e.clipboardData && e.clipboardData.items; if(!items) return;
+      for(const it of items){ if(it.type.indexOf('image') !== -1){ const blob = it.getAsFile(); loadFile(blob); break; } }
+    });
+
+    // Initial UI sync
+    uiSync(); draw();
+  </script>
+</body>
+</html>
